@@ -1,24 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.OleDb;
-using System.Linq.Expressions;
-using System.Reflection;
-using LinqToExcel.Domain;
+﻿using LinqToExcel.Domain;
 using LinqToExcel.Query;
 using log4net;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 
 namespace LinqToExcel
 {
     public class ExcelQueryFactory : IExcelQueryFactory
     {
-        private readonly Dictionary<string, string> _columnMappings = new Dictionary<string, string>();
+        private readonly Dictionary<string, ColumnMapping> _columnMappings = new Dictionary<string, ColumnMapping>();
         private readonly Dictionary<string, Func<string, object>> _transformations = new Dictionary<string, Func<string, object>>();
         private readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private ExcelQueryArgs _queryArgs;
         private bool _disposed;
 
-	    /// <summary>
+        /// <summary>
         /// Full path to the Excel spreadsheet
         /// </summary>
         public string FileName { get; set; }
@@ -71,9 +70,9 @@ namespace LinqToExcel
         /// <typeparam name="TSheetData">Class type to return row data as</typeparam>
         /// <param name="property">Class property to map to</param>
         /// <param name="column">Worksheet column name to map from</param>
-        public void AddMapping<TSheetData>(Expression<Func<TSheetData, object>> property, string column)
+        public void AddMapping<TSheetData>(Expression<Func<TSheetData, object>> property, string column, ColumnMappingType columnMappingType = ColumnMappingType.Header)
         {
-            AddMapping(GetPropertyName(property), column);
+            AddMapping(GetPropertyName(property), column, columnMappingType);
         }
 
         /// <summary>
@@ -81,9 +80,9 @@ namespace LinqToExcel
         /// </summary>
         /// <param name="propertyName">Class property to map to</param>
         /// <param name="column">Worksheet column name to map from</param>
-        public void AddMapping(string propertyName, string column)
+        public void AddMapping(string propertyName, string column, ColumnMappingType columnMappingType = ColumnMappingType.Header)
         {
-            _columnMappings[propertyName] = column;
+            _columnMappings[propertyName] = new ColumnMapping(column, columnMappingType);
         }
 
         /// <summary>
@@ -93,9 +92,9 @@ namespace LinqToExcel
         /// <param name="property">Class property to map to</param>
         /// <param name="column">Worksheet column name to map from</param>
         /// <param name="transformation">Lambda expression that transforms the original string value to the desired property value</param>
-        public void AddMapping<TSheetData>(Expression<Func<TSheetData, object>> property, string column, Func<string, object> transformation)
+        public void AddMapping<TSheetData>(Expression<Func<TSheetData, object>> property, string column, Func<string, object> transformation, ColumnMappingType columnMappingType = ColumnMappingType.Header)
         {
-            AddMapping(property, column);
+            AddMapping(property, column, columnMappingType);
             AddTransformation(property, transformation);
         }
 
@@ -111,6 +110,11 @@ namespace LinqToExcel
                 (MemberExpression)exp.Body :
                 (MemberExpression)((UnaryExpression)exp.Body).Operand;
             return mExp.Member.Name;
+        }
+
+        private static Dictionary<string, ColumnMapping> GetColumnMappings(Dictionary<string, string> columnMappings)
+        {
+            return columnMappings != null ? columnMappings.ToDictionary(x => x.Key, x => new ColumnMapping(x.Value)) : null;
         }
 
         /// <summary>
@@ -196,7 +200,7 @@ namespace LinqToExcel
                 StrictMapping = StrictMapping,
                 ColumnMappings = _columnMappings,
                 Transformations = _transformations,
-				UsePersistentConnection = UsePersistentConnection,
+                UsePersistentConnection = UsePersistentConnection,
                 TrimSpaces = TrimSpaces,
                 ReadOnly = ReadOnly
             };
@@ -618,7 +622,7 @@ namespace LinqToExcel
 
         #endregion
 
-		#region IDisposable Methods
+        #region IDisposable Methods
 
         public void Dispose()
         {
@@ -656,11 +660,11 @@ namespace LinqToExcel
             _disposed = true;
         }
 
-		#endregion
+        #endregion
 
-		#region Static Methods
+        #region Static Methods
 
-		/// <summary>
+        /// <summary>
         /// Enables Linq queries against an Excel worksheet
         /// </summary>
         /// <typeparam name="TSheetData">Class type to return row data as</typeparam>
@@ -730,6 +734,17 @@ namespace LinqToExcel
         /// <param name="columnMappings">Column to property mappings</param>
         public static ExcelQueryable<Row> Worksheet(string worksheetName, string fileName, Dictionary<string, string> columnMappings)
         {
+            return Worksheet2(worksheetName, fileName, GetColumnMappings(columnMappings));
+        }
+
+        /// <summary>
+        /// Enables Linq queries against an Excel worksheet
+        /// </summary>
+        /// <param name="worksheetName">Name of the worksheet</param>
+        /// <param name="fileName">Full path to the Excel spreadsheet</param>
+        /// <param name="columnMappings">Column to property mappings</param>
+        public static ExcelQueryable<Row> Worksheet2(string worksheetName, string fileName, Dictionary<string, ColumnMapping> columnMappings)
+        {
             return new ExcelQueryable<Row>(
                 new ExcelQueryArgs(
                     new ExcelQueryConstructorArgs() { FileName = fileName, ColumnMappings = columnMappings })
@@ -745,6 +760,17 @@ namespace LinqToExcel
         /// <param name="fileName">Full path to the Excel spreadsheet</param>
         /// <param name="columnMappings">Column to property mappings</param>
         public static ExcelQueryable<Row> Worksheet(int worksheetIndex, string fileName, Dictionary<string, string> columnMappings)
+        {
+            return Worksheet2(worksheetIndex, fileName, GetColumnMappings(columnMappings));
+        }
+
+        /// <summary>
+        /// Enables Linq queries against an Excel worksheet
+        /// </summary>
+        /// <param name="worksheetIndex">Worksheet index ordered by name, not position in the workbook</param>
+        /// <param name="fileName">Full path to the Excel spreadsheet</param>
+        /// <param name="columnMappings">Column to property mappings</param>
+        public static ExcelQueryable<Row> Worksheet2(int worksheetIndex, string fileName, Dictionary<string, ColumnMapping> columnMappings)
         {
             return new ExcelQueryable<Row>(
                 new ExcelQueryArgs(
@@ -763,6 +789,18 @@ namespace LinqToExcel
         /// <param name="columnMappings">Column to property mappings</param>
         public static ExcelQueryable<TSheetData> Worksheet<TSheetData>(string worksheetName, string fileName, Dictionary<string, string> columnMappings)
         {
+            return Worksheet2<TSheetData>(worksheetName, fileName, GetColumnMappings(columnMappings));
+        }
+
+        /// <summary>
+        /// Enables Linq queries against an Excel worksheet
+        /// </summary>
+        /// <typeparam name="TSheetData">Class type to return row data as</typeparam>
+        /// <param name="worksheetName">Name of the worksheet</param>
+        /// <param name="fileName">Full path to the Excel spreadsheet</param>
+        /// <param name="columnMappings">Column to property mappings</param>
+        public static ExcelQueryable<TSheetData> Worksheet2<TSheetData>(string worksheetName, string fileName, Dictionary<string, ColumnMapping> columnMappings)
+        {
             return new ExcelQueryable<TSheetData>(
                 new ExcelQueryArgs(
                     new ExcelQueryConstructorArgs() { FileName = fileName, ColumnMappings = columnMappings })
@@ -780,6 +818,18 @@ namespace LinqToExcel
         /// <param name="columnMappings">Column to property mappings</param>
         public static ExcelQueryable<TSheetData> Worksheet<TSheetData>(int worksheetIndex, string fileName, Dictionary<string, string> columnMappings)
         {
+            return Worksheet2<TSheetData>(worksheetIndex, fileName, GetColumnMappings(columnMappings));
+        }
+
+        /// <summary>
+        /// Enables Linq queries against an Excel worksheet
+        /// </summary>
+        /// <typeparam name="TSheetData">Class type to return row data as</typeparam>
+        /// <param name="worksheetIndex">Worksheet index ordered by name, not position in the workbook</param>
+        /// <param name="fileName">Full path to the Excel spreadsheet</param>
+        /// <param name="columnMappings">Column to property mappings</param>
+        public static ExcelQueryable<TSheetData> Worksheet2<TSheetData>(int worksheetIndex, string fileName, Dictionary<string, ColumnMapping> columnMappings)
+        {
             return new ExcelQueryable<TSheetData>(
                 new ExcelQueryArgs(
                     new ExcelQueryConstructorArgs() { FileName = fileName, ColumnMappings = columnMappings })
@@ -789,5 +839,5 @@ namespace LinqToExcel
         }
 
         #endregion
-	}
+    }
 }

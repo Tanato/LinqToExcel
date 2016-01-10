@@ -1,9 +1,9 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using LinqToExcel.Attributes;
+using LinqToExcel.Domain;
 using Remotion.Data.Linq;
-using System.Linq.Expressions;
-using LinqToExcel.Attributes;
 using System;
+using System.Linq;
+using System.Linq.Expressions;
 
 namespace LinqToExcel.Query
 {
@@ -23,7 +23,7 @@ namespace LinqToExcel.Query
                 ExcelColumnAttribute att = (ExcelColumnAttribute)Attribute.GetCustomAttribute(property, typeof(ExcelColumnAttribute));
                 if (att != null && !args.ColumnMappings.ContainsKey(property.Name))
                 {
-                    args.ColumnMappings.Add(property.Name, att.ColumnName);
+                    args.ColumnMappings.Add(property.Name, new ColumnMapping(att.ColumnName, att.ColumnMappingType));
                 }
             }
         }

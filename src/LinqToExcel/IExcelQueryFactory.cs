@@ -42,14 +42,14 @@ namespace LinqToExcel
         /// <typeparam name="TSheetData">Class type to return row data as</typeparam>
         /// <param name="property">Class property to map to</param>
         /// <param name="column">Worksheet column name to map from</param>
-        void AddMapping<TSheetData>(Expression<Func<TSheetData, object>> property, string column);
+        void AddMapping<TSheetData>(Expression<Func<TSheetData, object>> property, string column, ColumnMappingType columnMappingType = ColumnMappingType.Header);
 
         /// <summary>
         /// Add a column to property mapping
         /// </summary>
         /// <param name="propertyName">Class property to map to</param>
         /// <param name="column">Worksheet column name to map from</param>
-        void AddMapping(string propertyName, string column);
+        void AddMapping(string propertyName, string column, ColumnMappingType columnMappingType = ColumnMappingType.Header);
 
         /// <summary>
         /// Add a column to property mapping with a transformation operation
@@ -58,7 +58,7 @@ namespace LinqToExcel
         /// <param name="property">Class property to map to</param>
         /// <param name="column">Worksheet column name to map from</param>
         /// <param name="transformation">Lambda expression that transforms a cell value in the spreadsheet to the desired property value</param>
-        void AddMapping<TSheetData>(Expression<Func<TSheetData, object>> property, string column, Func<string, object> transformation);
+        void AddMapping<TSheetData>(Expression<Func<TSheetData, object>> property, string column, Func<string, object> transformation, ColumnMappingType columnMappingType = ColumnMappingType.Header);
 
         /// <summary>
         /// Transforms a cell value in the spreadsheet to the desired property value

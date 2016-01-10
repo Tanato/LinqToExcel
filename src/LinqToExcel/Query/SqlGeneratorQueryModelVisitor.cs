@@ -1,11 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Remotion.Data.Linq;
+﻿using Remotion.Data.Linq;
 using Remotion.Data.Linq.Clauses;
 using Remotion.Data.Linq.Clauses.ResultOperators;
-using System.Linq.Expressions;
 using Remotion.Data.Linq.Collections;
+using System;
+using System.Linq;
+using System.Linq.Expressions;
 
 namespace LinqToExcel.Query
 {
@@ -123,7 +122,7 @@ namespace LinqToExcel.Query
                 {
                     var mExp = exp as MemberExpression;
                     columnName = (_args.ColumnMappings.ContainsKey(mExp.Member.Name)) ?
-                        _args.ColumnMappings[mExp.Member.Name] :
+                        _args.ColumnMappings[mExp.Member.Name].ColumnName :
                         mExp.Member.Name;
                 }
                 else if (exp is MethodCallExpression)
@@ -162,7 +161,7 @@ namespace LinqToExcel.Query
         {
             var mExp = queryModel.SelectClause.Selector as MemberExpression;
             return (_args.ColumnMappings != null && _args.ColumnMappings.ContainsKey(mExp.Member.Name)) ?
-                _args.ColumnMappings[mExp.Member.Name] :
+                _args.ColumnMappings[mExp.Member.Name].ColumnName :
                 mExp.Member.Name;
         }
 

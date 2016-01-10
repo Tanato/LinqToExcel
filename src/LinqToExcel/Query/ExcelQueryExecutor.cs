@@ -1,18 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Remotion.Data.Linq;
-using System.IO;
-using System.Data.OleDb;
-using System.Data;
-using System.Reflection;
-using Remotion.Data.Linq.Clauses.ResultOperators;
-using System.Collections;
+﻿using LinqToExcel.Domain;
 using LinqToExcel.Extensions;
 using log4net;
-using System.Text.RegularExpressions;
+using Remotion.Data.Linq;
+using Remotion.Data.Linq.Clauses.ResultOperators;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.OleDb;
+using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Text;
-using LinqToExcel.Domain;
+using System.Text.RegularExpressions;
 
 namespace LinqToExcel.Query
 {
@@ -26,8 +26,8 @@ namespace LinqToExcel.Query
             ValidateArgs(args);
             _args = args;
 
-			if (_log.IsDebugEnabled)
-				_log.DebugFormat("Connection String: {0}", ExcelUtilities.GetConnection(args).ConnectionString);
+            if (_log.IsDebugEnabled)
+                _log.DebugFormat("Connection String: {0}", ExcelUtilities.GetConnection(args).ConnectionString);
 
             GetWorksheetName();
         }
@@ -167,14 +167,14 @@ namespace LinqToExcel.Query
             IEnumerable<object> results;
             OleDbDataReader data = null;
 
-	        var conn = ExcelUtilities.GetConnection(_args);
+            var conn = ExcelUtilities.GetConnection(_args);
             var command = conn.CreateCommand();
             try
             {
                 if (conn.State == ConnectionState.Closed)
                     conn.Open();
 
-	            command.CommandText = sql.ToString();
+                command.CommandText = sql.ToString();
                 command.Parameters.AddRange(sql.Parameters.ToArray());
                 try { data = command.ExecuteReader(); }
                 catch (OleDbException e)
@@ -218,12 +218,12 @@ namespace LinqToExcel.Query
         /// <param name="Columns">List of columns in the worksheet</param>
         private void LogColumnMappingWarnings(IEnumerable<string> columns)
         {
-            foreach (var kvp in _args.ColumnMappings)
+            foreach (var kvp in _args.ColumnMappings.Where(x => x.Value.ColumnMappingType == ColumnMappingType.Header))
             {
-                if (!columns.Contains(kvp.Value))
+                if (!columns.Contains(kvp.Value.ColumnName))
                 {
                     _log.WarnFormat("'{0}' column that is mapped to the '{1}' property does not exist in the '{2}' worksheet",
-                        kvp.Value, kvp.Key, _args.WorksheetName);
+                        kvp.Value.ColumnName, kvp.Key, _args.WorksheetName);
                 }
             }
         }
@@ -297,19 +297,99 @@ namespace LinqToExcel.Query
                 var result = Activator.CreateInstance(fromType);
                 foreach (var prop in props)
                 {
-                    var columnName = (_args.ColumnMappings.ContainsKey(prop.Name)) ?
-                        _args.ColumnMappings[prop.Name] :
-                        prop.Name;
-                    if (columns.Contains(columnName))
+                    ColumnMapping columnMap = _args.ColumnMappings.ContainsKey(prop.Name) ? _args.ColumnMappings[prop.Name] : null;
+
+                    if (columnMap != null && columnMap.ColumnMappingType == ColumnMappingType.ExcelColumnLetter)
                     {
-                        var value = GetColumnValue(data, columnName, prop.Name).Cast(prop.PropertyType);
+                        ValidateColumLetter(columnMap.ColumnName);
+                        ValidateColumnInRange(_args.StartRange, _args.EndRange, columnMap.ColumnName);
+
+                        int dataReaderColumnIndex = GetDataReaderIndex(GetColumnName(_args.StartRange), columnMap.ColumnName);
+
+                        var value = GetColumnValue(data, dataReaderColumnIndex, prop.Name).Cast(prop.PropertyType);
                         value = TrimStringValue(value);
                         result.SetProperty(prop.Name, value);
+                    }
+                    else
+                    {
+                        var columnName = (_args.ColumnMappings.ContainsKey(prop.Name)) ?
+                            _args.ColumnMappings[prop.Name].ColumnName :
+                            prop.Name;
+                        if (columns.Contains(columnName))
+                        {
+                            var value = GetColumnValue(data, columnName, prop.Name).Cast(prop.PropertyType);
+                            value = TrimStringValue(value);
+                            result.SetProperty(prop.Name, value);
+                        }
                     }
                 }
                 results.Add(result);
             }
             return results.AsEnumerable();
+        }
+
+        /// <summary>
+        /// Validate if the column mapped is in the range specified of worksheet.
+        /// </summary>
+        /// <param name="startRange"></param>
+        /// <param name="endRange"></param>
+        /// <param name="columnName"></param>
+        private void ValidateColumnInRange(string startRange, string endRange, string columnName)
+        {
+            int columnIndex = GetExcelColumnIndex(columnName);
+            if (columnIndex < GetExcelColumnIndex(GetColumnName(startRange)) || columnIndex > GetExcelColumnIndex(GetColumnName(endRange)))
+                throw new ArgumentException(string.Format("The column {0} is outside the limit of the specified range {1} - {2} ", columnName, startRange, endRange));
+        }
+
+        /// <summary>
+        /// Validate if column letter mapped is in range of excel limit
+        /// </summary>
+        /// <param name="columnName"></param>
+        /// <returns></returns>
+        private static void ValidateColumLetter(string columnName)
+        {
+            string excelColumnLimit = "XFD";
+            // Return false if any letter is outside A-Z range
+            if (columnName.ToUpper().Any(x => x < 'A' || x > 'Z') ||
+                GetExcelColumnIndex(columnName) > GetExcelColumnIndex(excelColumnLimit))
+                throw new ArgumentException(string.Format("The column {0} is outside the limit of excel range {1}", columnName, excelColumnLimit));
+        }
+
+        /// <summary>
+        /// Get column index of datareader for the mapped letter in relation with the range
+        /// </summary>
+        /// <param name="startColumnRange"></param>
+        /// <param name="columnLetter"></param>
+        /// <returns></returns>
+        private static int GetDataReaderIndex(string startColumnRange, string columnLetter)
+        {
+            int columnIndex = GetExcelColumnIndex(columnLetter) - GetExcelColumnIndex(startColumnRange);
+
+            if (columnIndex < 0)
+                throw new ArgumentException(string.Format("Mapped column {0} cannot be before start column range {1}", columnLetter, startColumnRange));
+
+            return columnIndex;
+        }
+
+        /// <summary>
+        /// Translate excel column letter to integer
+        /// </summary>
+        /// <param name="columnLetter"></param>
+        /// <returns></returns>
+        private static int GetExcelColumnIndex(string columnLetter)
+        {
+            return columnLetter.ToUpper().Select((x, i) => ((x - 'A' + 1) * ((int)Math.Pow(26, columnLetter.Length - i - 1)))).Sum();
+        }
+
+        /// <summary>
+        /// Get the column name from a cell name
+        /// </summary>
+        /// <param name="columnName"></param>
+        /// <returns></returns>
+        private static string GetColumnName(string cellName)
+        {
+            // Regular expression to match the column name portion of the cell name.
+            return new Regex("[A-Za-z]+").Match(cellName).Value;
         }
 
         /// <summary>
@@ -365,7 +445,9 @@ namespace LinqToExcel.Query
 
         private bool ColumnIsNotMapped(string columnName)
         {
-            return !_args.ColumnMappings.Values.Contains(columnName);
+            // Columns mapped to Excel Column Letter doesn't check strict
+            return !_args.ColumnMappings.Values.Any(x => (x.ColumnName == columnName && x.ColumnMappingType == ColumnMappingType.Header)
+                                                          || x.ColumnMappingType == ColumnMappingType.ExcelColumnLetter);
         }
 
         private object GetColumnValue(IDataRecord data, string columnName, string propertyName)
@@ -374,6 +456,14 @@ namespace LinqToExcel.Query
             return (_args.Transformations.ContainsKey(propertyName)) ?
                 _args.Transformations[propertyName](data[columnName].ToString()) :
                 data[columnName];
+        }
+
+        private object GetColumnValue(IDataRecord data, int columnIndex, string propertyName)
+        {
+            //Perform the property transformation if there is one
+            return (_args.Transformations.ContainsKey(propertyName)) ?
+                _args.Transformations[propertyName](data[columnIndex].ToString()) :
+                data[columnIndex];
         }
 
         private IEnumerable<object> GetScalarResults(IDataReader data)

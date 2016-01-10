@@ -1,9 +1,9 @@
-﻿using System;
+﻿using LinqToExcel.Domain;
+using System;
 using System.Collections.Generic;
 using System.Data.OleDb;
 using System.Linq;
 using System.Text;
-using LinqToExcel.Domain;
 
 namespace LinqToExcel.Query
 {
@@ -13,7 +13,7 @@ namespace LinqToExcel.Query
         internal DatabaseEngine DatabaseEngine { get; set; }
         internal string WorksheetName { get; set; }
         internal int? WorksheetIndex { get; set; }
-        internal Dictionary<string, string> ColumnMappings { get; set; }
+        internal Dictionary<string, ColumnMapping> ColumnMappings { get; set; }
         internal Dictionary<string, Func<string, object>> Transformations { get; private set; }
         internal string NamedRangeName { get; set; }
         internal string StartRange { get; set; }
@@ -22,7 +22,7 @@ namespace LinqToExcel.Query
         internal StrictMappingType? StrictMapping { get; set; }
         internal bool ReadOnly { get; set; }
         internal bool UsePersistentConnection { get; set; }
-		internal OleDbConnection PersistentConnection { get; set; }
+        internal OleDbConnection PersistentConnection { get; set; }
         internal TrimSpacesType TrimSpaces { get; set; }
 
         internal ExcelQueryArgs()
@@ -33,7 +33,7 @@ namespace LinqToExcel.Query
         {
             FileName = args.FileName;
             DatabaseEngine = args.DatabaseEngine;
-            ColumnMappings = args.ColumnMappings ?? new Dictionary<string, string>();
+            ColumnMappings = args.ColumnMappings ?? new Dictionary<string, ColumnMapping>();
             Transformations = args.Transformations ?? new Dictionary<string, Func<string, object>>();
             StrictMapping = args.StrictMapping ?? StrictMappingType.None;
             UsePersistentConnection = args.UsePersistentConnection;

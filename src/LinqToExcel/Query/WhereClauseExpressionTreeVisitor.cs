@@ -7,6 +7,7 @@ using System.Data.OleDb;
 using System.Linq.Expressions;
 using LinqToExcel.Extensions;
 using Remotion.Data.Linq.Clauses.Expressions;
+using LinqToExcel.Domain;
 
 namespace LinqToExcel.Query
 {
@@ -14,12 +15,12 @@ namespace LinqToExcel.Query
     {
         private readonly StringBuilder _whereClause = new StringBuilder();
         private readonly List<OleDbParameter> _params = new List<OleDbParameter>();
-        private readonly Dictionary<string, string> _columnMapping;
+        private readonly Dictionary<string, ColumnMapping> _columnMapping;
         private readonly List<string> _columnNamesUsed = new List<string>();
         private readonly Type _sheetType;
         private readonly List<string> _validStringMethods;
 
-        public WhereClauseExpressionTreeVisitor(Type sheetType, Dictionary<string, string> columnMapping)
+        public WhereClauseExpressionTreeVisitor(Type sheetType, Dictionary<string, ColumnMapping> columnMapping)
         {
             _sheetType = sheetType;
             _columnMapping = columnMapping;
@@ -151,7 +152,7 @@ namespace LinqToExcel.Query
             //Set the column name to the property mapping if there is one, 
             //else use the property name for the column name
             var columnName = (_columnMapping.ContainsKey(mExp.Member.Name)) ? 
-                _columnMapping[mExp.Member.Name] : 
+                _columnMapping[mExp.Member.Name].ColumnName : 
                 mExp.Member.Name;
             _whereClause.AppendFormat("[{0}]", columnName);
             _columnNamesUsed.Add(columnName);
